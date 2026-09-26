@@ -1,0 +1,40 @@
+# Dataset copies: collaborators provision these locally.
+/Dataset/
+/data/
+/datasets/
+/raw-data/
+/processed-data/
+
+# Python environments, local package installs, and downloaded pretrained weights.
+/.venv/
+/venv/
+/.python-packages/
+/.torch_cache/
+__pycache__/
+*.py[cod]
+
+# Generated experiment outputs, checkpoints, and logs.
+/runs*/
+/outputs/
+/checkpoints/
+/logs/
+/tensorboard/
+/pip-install.log
+/pip-install.err
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.keras
+
+# Secrets, editor settings, and OS metadata.
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+Desktop.ini
