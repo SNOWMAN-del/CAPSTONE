@@ -65,6 +65,63 @@ class FamilyAStressFusionClassifier(nn.Module):
         return self.head(features)
 
 
+class PretrainedFeatureEncoder(nn.Module):
+    """ImageNet CNN with its classification layer removed for feature fusion."""
+
+    def __init__(self, backbone: str, pretrained: bool = True):
+        super().__init__()
+        self.backbone = backbone
+        if backbone == "efficientnet_v2_s":
+            weights = EfficientNet_V2_S_Weights.IMAGENET1K_V1 if pretrained else None
+            self.network = efficientnet_v2_s(weights=weights)
+            self.output_dim = self.network.classifier[-1].in_features
+            self.network.classifier = nn.Identity()
+        elif backbone == "resnet18":
+            weights = ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+            self.network = resnet18(weights=weights)
+            self.output_dim = self.network.fc.in_features
+            self.network.fc = nn.Identity()
+        elif backbone == "mobilenet_v2":
+            weights = MobileNet_V2_Weights.IMAGENET1K_V1 if pretrained else None
+            self.network = mobilenet_v2(weights=weights)
+            self.output_dim = self.network.classifier[-1].in_features
+            self.network.classifier = nn.Identity()
+        else:
+            raise ValueError(f"Unsupported pretrained fusion backbone: {backbone}")
+
+    def set_trainable(self, trainable: bool) -> None:
+        for parameter in self.network.parameters():
+            parameter.requires_grad = trainable
+
+    def forward(self, image: torch.Tensor) -> torch.Tensor:
+        return self.network(image)
+
+
+class FamilyAPretrainedStressFusionClassifier(nn.Module):
+    """Paired RGB/thermal feature fusion using one selected pretrained CNN architecture."""
+
+    def __init__(self, num_classes: int, backbone: str, pretrained: bool = True):
+        super().__init__()
+        self.backbone = backbone
+        self.rgb_encoder = PretrainedFeatureEncoder(backbone, pretrained=pretrained)
+        self.thermal_encoder = PretrainedFeatureEncoder(backbone, pretrained=pretrained)
+        fused_dim = self.rgb_encoder.output_dim + self.thermal_encoder.output_dim
+        self.head = nn.Sequential(
+            nn.Linear(fused_dim, 512),
+            nn.ReLU(inplace=True),
+            nn.Dropout(0.3),
+            nn.Linear(512, num_classes),
+        )
+
+    def set_backbones_trainable(self, trainable: bool) -> None:
+        self.rgb_encoder.set_trainable(trainable)
+        self.thermal_encoder.set_trainable(trainable)
+
+    def forward(self, rgb: torch.Tensor, thermal: torch.Tensor) -> torch.Tensor:
+        features = torch.cat([self.rgb_encoder(rgb), self.thermal_encoder(thermal)], dim=1)
+        return self.head(features)
+
+
 class FamilyAPretrainedCNNClassifier(nn.Module):
     """ImageNet-initialized CNN options for the Family A disease ensemble."""
 
@@ -185,6 +242,10 @@ def build_model(
                 )
             if task == "stress" and backbone == "fusion":
                 return FamilyAStressFusionClassifier(num_classes=num_classes)
+            if task == "stress" and backbone in {"efficientnet_v2_s", "resnet18", "mobilenet_v2"}:
+                return FamilyAPretrainedStressFusionClassifier(
+                    num_classes=num_classes, backbone=backbone, pretrained=pretrained
+                )
             return FamilyAImageClassifier(in_channels=in_channels, num_classes=num_classes)
         if family == "b":
             return PatchAttentionClassifier(in_channels=in_channels, num_classes=num_classes, image_size=image_size)

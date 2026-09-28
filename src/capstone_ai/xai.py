@@ -16,6 +16,7 @@ from .models import build_model
 
 DISEASE_BACKBONES = ("efficientnet_v2_s", "resnet18", "mobilenet_v2")
 DISEASE_WEIGHTS = torch.tensor((0.5, 0.1, 0.4), dtype=torch.float32)
+STRESS_WEIGHTS = torch.tensor((0.6, 0.3, 0.1), dtype=torch.float32)
 IMAGE_SIZE = 224
 
 
@@ -30,10 +31,12 @@ def parse_args() -> argparse.Namespace:
     disease.add_argument("--mobilenet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_disease_mobilenet_v2/best.pt"))
     disease.add_argument("--project-data", type=Path, default=Path("Dataset/PROJECT_DATA"))
 
-    stress = modes.add_parser("stress", help="Explain RGB and thermal stress-fusion prediction.")
+    stress = modes.add_parser("stress", help="Explain the three-CNN RGB/thermal stress ensemble.")
     stress.add_argument("--rgb", type=Path, required=True)
     stress.add_argument("--thermal", type=Path, required=True)
-    stress.add_argument("--checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_fusion/best.pt"))
+    stress.add_argument("--efficientnet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_efficientnet_v2_s/best.pt"))
+    stress.add_argument("--resnet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_resnet18/best.pt"))
+    stress.add_argument("--mobilenet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_mobilenet_v2/best.pt"))
     stress.add_argument("--project-data", type=Path, default=Path("Dataset/PROJECT_DATA"))
 
     water = modes.add_parser("water", help="Explain water prediction with Integrated Gradients feature attribution.")
@@ -142,28 +145,41 @@ def explain_disease(args, device: torch.device) -> dict:
 
 
 def explain_stress(args, device: torch.device) -> dict:
-    rgb_original, rgb = prepare_image(args.rgb, normalize=False)
-    thermal_original, thermal = prepare_image(args.thermal, normalize=False)
+    rgb_original, rgb = prepare_image(args.rgb, normalize=True)
+    thermal_original, thermal = prepare_image(args.thermal, normalize=True)
     manifest = pd.read_csv(args.project_data / "02_multimodal_stress" / "METADATA" / "split_manifest.csv")
     class_names = sorted(manifest["class"].unique())
-    model = load_model(args.checkpoint, "stress", {"num_classes": len(class_names), "input_channels": 6}, "fusion", device)
     rgb, thermal = rgb.to(device), thermal.to(device)
+    checkpoint_paths = (args.efficientnet_checkpoint, args.resnet_checkpoint, args.mobilenet_checkpoint)
+    models = [
+        load_model(path, "stress", {"num_classes": len(class_names), "input_channels": 6}, backbone, device)
+        for path, backbone in zip(checkpoint_paths, DISEASE_BACKBONES)
+    ]
     with torch.inference_mode():
-        probabilities = torch.softmax(model(rgb, thermal), dim=1)[0]
+        member_probabilities = torch.stack([torch.softmax(model(rgb, thermal), dim=1) for model in models])
+        probabilities = (member_probabilities * STRESS_WEIGHTS.to(device)[:, None, None]).sum(0)[0]
     confidence, target = probabilities.max(dim=0)
-    heatmaps = gradcam(
-        model, (rgb, thermal),
-        {"rgb": model.rgb_encoder.network[8], "thermal": model.thermal_encoder.network[8]}, int(target),
-    )
+    member_heatmaps = []
+    for model, backbone in zip(models, DISEASE_BACKBONES):
+        if backbone == "efficientnet_v2_s":
+            layers = {"rgb": model.rgb_encoder.network.features[-1], "thermal": model.thermal_encoder.network.features[-1]}
+        elif backbone == "resnet18":
+            layers = {"rgb": model.rgb_encoder.network.layer4[-1].conv2, "thermal": model.thermal_encoder.network.layer4[-1].conv2}
+        else:
+            layers = {"rgb": model.rgb_encoder.network.features[-1], "thermal": model.thermal_encoder.network.features[-1]}
+        member_heatmaps.append(gradcam(model, (rgb, thermal), layers, int(target)))
+    rgb_heatmap = sum(weight * maps["rgb"] for weight, maps in zip(STRESS_WEIGHTS.tolist(), member_heatmaps))
+    thermal_heatmap = sum(weight * maps["thermal"] for weight, maps in zip(STRESS_WEIGHTS.tolist(), member_heatmaps))
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    rgb_path = args.output_dir / "stress_rgb_gradcam.png"
-    thermal_path = args.output_dir / "stress_thermal_gradcam.png"
-    overlay(rgb_original, heatmaps["rgb"]).save(rgb_path)
-    overlay(thermal_original, heatmaps["thermal"]).save(thermal_path)
+    rgb_path = args.output_dir / "stress_ensemble_rgb_gradcam.png"
+    thermal_path = args.output_dir / "stress_ensemble_thermal_gradcam.png"
+    overlay(rgb_original, rgb_heatmap).save(rgb_path)
+    overlay(thermal_original, thermal_heatmap).save(thermal_path)
     return {
         "mode": "stress",
         "prediction": class_names[int(target)],
         "confidence": round(float(confidence), 6),
+        "ensemble_weights": dict(zip(DISEASE_BACKBONES, STRESS_WEIGHTS.tolist())),
         "outputs": [str(rgb_path), str(thermal_path)],
     }
 
@@ -188,7 +204,7 @@ def explain_water(args, device: torch.device) -> dict:
     raw_values = row[feature_columns].apply(pd.to_numeric, errors="raise").to_numpy(dtype=np.float32)
     mean = torch.as_tensor(stats["feature_mean"], dtype=torch.float32)
     std = torch.as_tensor(stats["feature_std"], dtype=torch.float32)
-    values = torch.as_tensor(raw_values, dtype=torch.float32)
+    values = torch.as_tensor(raw_values, dtype=torch.float32)[0]
     values = torch.where(torch.isnan(values), mean, values)
     normalized = ((values - mean) / std).to(device)
     model = build_model("a", "water", metadata, IMAGE_SIZE, backbone="baseline", pretrained=False).to(device)

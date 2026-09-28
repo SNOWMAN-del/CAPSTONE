@@ -1,0 +1,37 @@
+{
+  "status": "frozen_for_one_time_held_out_evaluation",
+  "disease": {
+    "backbones": ["efficientnet_v2_s", "resnet18", "mobilenet_v2"],
+    "weights": [0.5, 0.1, 0.4],
+    "temperature": 0.8406115174293518,
+    "checkpoints": [
+      "runs_efficientnet/family_a_disease/best.pt",
+      "runs_hybrid/family_a_disease_resnet18/best.pt",
+      "runs_hybrid/family_a_disease_mobilenet_v2/best.pt"
+    ]
+  },
+  "stress": {
+    "backbones": ["efficientnet_v2_s", "resnet18", "mobilenet_v2"],
+    "weights": [0.6, 0.3, 0.1],
+    "temperature": 0.14648915827274323,
+    "checkpoints": [
+      "runs_hybrid/family_a_stress_efficientnet_v2_s/best.pt",
+      "runs_hybrid/family_a_stress_resnet18/best.pt",
+      "runs_hybrid/family_a_stress_mobilenet_v2/best.pt"
+    ]
+  },
+  "water": {
+    "selected_model": "FamilyAWaterRegressor",
+    "checkpoint": "runs_hybrid/family_a_water_baseline/best.pt",
+    "comparator": "RandomForestRegressor"
+  },
+  "irrigation_policy": {
+    "path": "configs/irrigation_policy.example.json",
+    "field_validated": false,
+    "operational_use_approved": false
+  },
+  "ood": {
+    "method": "maximum_softmax_probability",
+    "requires_external_dataset": true
+  }
+}

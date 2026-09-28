@@ -1,0 +1,6 @@
+{
+  "effective_rainfall_fraction": 0.8,
+  "application_efficiency": 0.85,
+  "maximum_daily_irrigation_mm": 12.0,
+  "stress_ks_threshold": 0.8
+}

@@ -57,7 +57,13 @@ def make_loaders(args: argparse.Namespace):
             imagenet_normalize=args.backbone in {"efficientnet_v2_s", "resnet18", "mobilenet_v2"},
         )
     if args.task == "stress":
-        return build_stress_loaders(args.project_data, args.image_size, args.batch_size, args.num_workers)
+        return build_stress_loaders(
+            args.project_data,
+            args.image_size,
+            args.batch_size,
+            args.num_workers,
+            imagenet_normalize=args.backbone in {"efficientnet_v2_s", "resnet18", "mobilenet_v2"},
+        )
     if args.task == "water":
         return build_water_loaders(args.project_data, args.batch_size, args.num_workers)
     raise ValueError(args.task)
@@ -131,6 +137,8 @@ def main() -> None:
     for epoch in range(1, args.epochs + 1):
         if hasattr(model, "set_backbone_trainable"):
             model.set_backbone_trainable(epoch > args.freeze_epochs)
+        if hasattr(model, "set_backbones_trainable"):
+            model.set_backbones_trainable(epoch > args.freeze_epochs)
         train_metrics = run_epoch(
             model, loaders.train, criterion, optimizer, args.task, device, args.limit_batches, train=True
         )

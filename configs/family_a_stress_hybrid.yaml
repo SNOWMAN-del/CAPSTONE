@@ -1,0 +1,19 @@
+task: stress
+family: a
+project_data: Dataset/PROJECT_DATA
+image_size: 224
+batch_size: 16
+epochs: 40
+learning_rate: 0.0001
+weight_decay: 0.0001
+freeze_epochs: 3
+early_stopping_patience: 8
+scheduler_patience: 3
+num_workers: 4
+seed: 42
+backbones:
+  - efficientnet_v2_s
+  - resnet18
+  - mobilenet_v2
+selection_split: validation
+test_evaluation: false

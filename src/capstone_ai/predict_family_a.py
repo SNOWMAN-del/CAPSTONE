@@ -10,11 +10,13 @@ import torch
 from PIL import Image
 from torchvision import transforms
 
+from .irrigation import IrrigationPolicy, irrigation_advisory
 from .models import build_model
 
 
 DISEASE_BACKBONES = ("efficientnet_v2_s", "resnet18", "mobilenet_v2")
 DISEASE_WEIGHTS = (0.5, 0.1, 0.4)
+STRESS_WEIGHTS = (0.6, 0.3, 0.1)
 
 
 def parser() -> argparse.ArgumentParser:
@@ -32,12 +34,17 @@ def parser() -> argparse.ArgumentParser:
     stress = modes.add_parser("stress", help="Predict healthy/stressed from a synchronized RGB and thermal pair.")
     stress.add_argument("--rgb", type=Path, required=True)
     stress.add_argument("--thermal", type=Path, required=True)
-    stress.add_argument("--checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_fusion/best.pt"))
+    stress.add_argument("--efficientnet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_efficientnet_v2_s/best.pt"))
+    stress.add_argument("--resnet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_resnet18/best.pt"))
+    stress.add_argument("--mobilenet-checkpoint", type=Path, default=Path("runs_hybrid/family_a_stress_mobilenet_v2/best.pt"))
     stress.add_argument("--project-data", type=Path, default=Path("Dataset/PROJECT_DATA"))
 
     water = modes.add_parser("water", help="Predict next-day ETa and Ks from one 41-column CSV row.")
     water.add_argument("--input-csv", type=Path, required=True)
     water.add_argument("--checkpoint", type=Path, default=Path("runs_hybrid/family_a_water_baseline/best.pt"))
+    water.add_argument("--mc-samples", type=int, default=30, help="Stochastic passes for MLP predictive uncertainty.")
+    water.add_argument("--rainfall-mm", type=float, default=0.0)
+    water.add_argument("--irrigation-config", type=Path, help="Optional JSON object matching IrrigationPolicy fields.")
     return root
 
 
@@ -90,14 +97,26 @@ def predict_stress(args, device: torch.device):
             raise FileNotFoundError(f"Image not found: {image_path}")
     manifest = pd.read_csv(args.project_data / "02_multimodal_stress" / "METADATA" / "split_manifest.csv")
     class_names = sorted(manifest["class"].unique())
-    model, _ = load_model(args.checkpoint, "stress", {"num_classes": len(class_names), "input_channels": 6}, "fusion", device)
-    transform = transforms.Compose([transforms.Resize((224, 224)), transforms.ToTensor()])
+    checkpoint_paths = (args.efficientnet_checkpoint, args.resnet_checkpoint, args.mobilenet_checkpoint)
+    models = [
+        load_model(path, "stress", {"num_classes": len(class_names), "input_channels": 6}, backbone, device)[0]
+        for path, backbone in zip(checkpoint_paths, DISEASE_BACKBONES)
+    ]
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)), transforms.ToTensor(),
+        transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ])
     rgb = transform(Image.open(args.rgb).convert("RGB")).unsqueeze(0).to(device)
     thermal = transform(Image.open(args.thermal).convert("RGB")).unsqueeze(0).to(device)
     with torch.inference_mode():
-        probabilities = torch.softmax(model(rgb, thermal), dim=1)[0]
+        member_probabilities = torch.stack([torch.softmax(model(rgb, thermal), dim=1) for model in models])
+        probabilities = (member_probabilities * torch.tensor(STRESS_WEIGHTS, device=device)[:, None, None]).sum(0)[0]
     confidence, index = probabilities.max(dim=0)
-    return {"mode": "stress", "prediction": {"class_name": class_names[int(index)], "confidence": round(float(confidence), 6)}}
+    return {
+        "mode": "stress",
+        "ensemble_weights": dict(zip(DISEASE_BACKBONES, STRESS_WEIGHTS)),
+        "prediction": {"class_name": class_names[int(index)], "confidence": round(float(confidence), 6)},
+    }
 
 
 def predict_water(args, device: torch.device):
@@ -123,13 +142,30 @@ def predict_water(args, device: torch.device):
     values = ((values - mean) / std).to(device)
     model = build_model("a", "water", metadata, 224, backbone="baseline", pretrained=False).to(device)
     model.load_state_dict(checkpoint["model"])
+    if args.mc_samples < 2:
+        raise ValueError("--mc-samples must be at least 2.")
+    # Keep batch normalization fixed but enable dropout for Monte-Carlo uncertainty.
     model.eval()
+    for module in model.modules():
+        if isinstance(module, torch.nn.Dropout):
+            module.train()
     with torch.inference_mode():
-        standardized = model(values)[0].cpu()
+        standardized_samples = torch.stack([model(values)[0].cpu() for _ in range(args.mc_samples)])
     target_mean = torch.as_tensor(stats["target_mean"], dtype=torch.float32)
     target_std = torch.as_tensor(stats["target_std"], dtype=torch.float32)
-    prediction = standardized * target_std + target_mean
-    return {"mode": "water", "prediction": {"next_day_ETa": round(float(prediction[0]), 6), "next_day_Ks": round(float(prediction[1]), 6)}}
+    predictions = standardized_samples * target_std + target_mean
+    prediction = predictions.mean(dim=0)
+    uncertainty = predictions.std(dim=0, unbiased=True)
+    policy = IrrigationPolicy()
+    if args.irrigation_config:
+        policy = IrrigationPolicy(**json.loads(args.irrigation_config.read_text(encoding="utf-8")))
+    return {
+        "mode": "water",
+        "prediction": {"next_day_ETa": round(float(prediction[0]), 6), "next_day_Ks": round(float(prediction[1]), 6)},
+        "predictive_uncertainty_std": {"next_day_ETa": round(float(uncertainty[0]), 6), "next_day_Ks": round(float(uncertainty[1]), 6)},
+        "uncertainty_method": {"name": "MC dropout", "samples": args.mc_samples, "scope": "epistemic approximation"},
+        "irrigation_advisory": irrigation_advisory(float(prediction[0]), float(prediction[1]), args.rainfall_mm, policy),
+    }
 
 
 def main() -> None:

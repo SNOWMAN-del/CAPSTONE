@@ -1,0 +1,85 @@
+{
+  "split": "validation only; no held-out test inputs used",
+  "device": "cpu",
+  "disease": {
+    "expected_label_id": 0,
+    "source_image": "F:\\CAPSTONE\\Dataset\\PROJECT_DATA\\01_disease\\SPLITS\\validation\\AI-MedLeaf\\Camphor\\Bacterial Spot\\Bacterial Spot_1.jpg",
+    "mode": "disease",
+    "prediction": "Camphor_Bacterial Spot",
+    "confidence": 0.999897,
+    "outputs": [
+      "runs_hybrid\\xai_evidence\\disease\\disease_efficientnet_gradcam.png",
+      "runs_hybrid\\xai_evidence\\disease\\disease_resnet_gradcam.png",
+      "runs_hybrid\\xai_evidence\\disease\\disease_mobilenet_gradcam.png",
+      "runs_hybrid\\xai_evidence\\disease\\disease_ensemble_gradcam.png"
+    ]
+  },
+  "water_stress": {
+    "expected_class": "Guava Healthy",
+    "rgb_source": "F:\\CAPSTONE\\Dataset\\PROJECT_DATA\\02_multimodal_stress\\SPLITS\\validation\\RGB\\FLIR4146.jpg",
+    "thermal_source": "F:\\CAPSTONE\\Dataset\\PROJECT_DATA\\02_multimodal_stress\\SPLITS\\validation\\Thermal\\FLIR4145.jpg",
+    "mode": "stress",
+    "prediction": "Guava Healthy",
+    "confidence": 0.999247,
+    "ensemble_weights": {
+      "efficientnet_v2_s": 0.6000000238418579,
+      "resnet18": 0.30000001192092896,
+      "mobilenet_v2": 0.10000000149011612
+    },
+    "outputs": [
+      "runs_hybrid\\xai_evidence\\stress\\stress_ensemble_rgb_gradcam.png",
+      "runs_hybrid\\xai_evidence\\stress\\stress_ensemble_thermal_gradcam.png"
+    ]
+  },
+  "water": {
+    "selection": "lowest mean standardized absolute error on validation",
+    "validation_row_index": 20,
+    "input_csv": "runs_hybrid\\xai_evidence\\water_representative_low_error.csv",
+    "mode": "water",
+    "target": "next_day_ETa",
+    "top_feature_attributions": [
+      {
+        "feature": "HW_WindDir_STDD_Mean",
+        "attribution": 0.361542
+      },
+      {
+        "feature": "WB_Irrigation",
+        "attribution": 0.285611
+      },
+      {
+        "feature": "Year",
+        "attribution": -0.233369
+      },
+      {
+        "feature": "SWC_30_Std",
+        "attribution": 0.228496
+      },
+      {
+        "feature": "DOY",
+        "attribution": 0.144962
+      },
+      {
+        "feature": "SWC_150_Mean",
+        "attribution": 0.135567
+      },
+      {
+        "feature": "WB_Root Zone Field Capacity",
+        "attribution": 0.120058
+      },
+      {
+        "feature": "HW_RH_Max",
+        "attribution": 0.099068
+      },
+      {
+        "feature": "HW_WindSpeed_Mean",
+        "attribution": -0.089882
+      },
+      {
+        "feature": "HW_AirTemp_Max",
+        "attribution": 0.066915
+      }
+    ],
+    "interpretation": "Positive values increase the selected prediction relative to the training-average baseline; negative values decrease it."
+  },
+  "interpretation_guardrail": "Attribution highlights model sensitivity, not a causal diagnosis or agronomic mechanism."
+}

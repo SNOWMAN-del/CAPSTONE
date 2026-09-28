@@ -98,7 +98,7 @@ class DiseaseDataset(Dataset):
 
 
 class PairedStressDataset(Dataset):
-    def __init__(self, root: Path, split: str, image_size: int, train: bool):
+    def __init__(self, root: Path, split: str, image_size: int, train: bool, normalize=None):
         self.root = stress_dir(root)
         self.split = split
         manifest = pd.read_csv(self.root / "METADATA" / "split_manifest.csv")
@@ -108,6 +108,7 @@ class PairedStressDataset(Dataset):
         self.train = train
         self.image_size = image_size
         self.to_tensor = transforms.ToTensor()
+        self.normalize = normalize
 
     def __len__(self) -> int:
         return len(self.dataframe)
@@ -147,7 +148,10 @@ class PairedStressDataset(Dataset):
         else:
             rgb = rgb.resize((self.image_size, self.image_size), Image.Resampling.BILINEAR)
             thermal = thermal.resize((self.image_size, self.image_size), Image.Resampling.BILINEAR)
-        return self.to_tensor(rgb), self.to_tensor(thermal)
+        rgb_tensor, thermal_tensor = self.to_tensor(rgb), self.to_tensor(thermal)
+        if self.normalize is not None:
+            rgb_tensor, thermal_tensor = self.normalize(rgb_tensor), self.normalize(thermal_tensor)
+        return rgb_tensor, thermal_tensor
 
     def __getitem__(self, index: int):
         row = self.dataframe.iloc[index]
@@ -236,11 +240,18 @@ def build_disease_loaders(
     )
 
 
-def build_stress_loaders(data_root: str | Path, image_size: int, batch_size: int, num_workers: int) -> LoaderBundle:
+def build_stress_loaders(
+    data_root: str | Path,
+    image_size: int,
+    batch_size: int,
+    num_workers: int,
+    imagenet_normalize: bool = False,
+) -> LoaderBundle:
     root = project_data_dir(data_root)
-    train = PairedStressDataset(root, "train", image_size, train=True)
-    validation = PairedStressDataset(root, "validation", image_size, train=False)
-    test = PairedStressDataset(root, "test", image_size, train=False)
+    normalize = transforms.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) if imagenet_normalize else None
+    train = PairedStressDataset(root, "train", image_size, train=True, normalize=normalize)
+    validation = PairedStressDataset(root, "validation", image_size, train=False, normalize=normalize)
+    test = PairedStressDataset(root, "test", image_size, train=False, normalize=normalize)
     metadata = {"num_classes": len(train.class_to_id), "input_channels": 6, "class_to_id": train.class_to_id}
     return LoaderBundle(
         DataLoader(train, batch_size=batch_size, shuffle=True, num_workers=num_workers),
