@@ -1,0 +1,2 @@
+"Soil_Type","Soil_pH","Soil_Moisture","Organic_Carbon","Electrical_Conductivity","Temperature_C","Humidity","Rainfall_mm","Sunlight_Hours","Wind_Speed_kmh","Crop_Type","Crop_Growth_Stage","Season","Irrigation_Type","Water_Source","Field_Area_hectare","Mulching_Used","Previous_Irrigation_mm","Region"
+"Clay","6.14","36.48","0.42","2.17","21.9","31.19","1167.7","4.01","1.97","Wheat","Vegetative","Rabi","Rainfed","Reservoir","4.73","Yes","1.98","South"

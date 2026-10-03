@@ -1,0 +1,58 @@
+{
+  "task": "retrospective_next_observation_irrigation_event_prediction",
+  "protocol": "train=2008-2013; validation=2014; 2015-2016 not evaluated by this command",
+  "target_definition": "1 when recorded irrigation at the next observation for the same treatment is greater than zero",
+  "features": [
+    "Year",
+    "DOY",
+    "Treatment",
+    "WB_Precip",
+    "WB_Root Zone Field Capacity",
+    "W_AirTemp_Avg",
+    "W_AirTemp_Max",
+    "W_AirTemp_Min",
+    "W_Vap_Press_Avg",
+    "W_RH_Max",
+    "W_RH_Min",
+    "W_DlySolRad",
+    "W_WindRun_Tot",
+    "W_DlyRain",
+    "W_SoilTemp_5cm",
+    "W_SoilTemp_15cm",
+    "W_ETr",
+    "W_ETo",
+    "SWC_0 - 15_Mean",
+    "SWC_30_Mean",
+    "SWC_60_Mean",
+    "SWC_90_Mean",
+    "SWC_120_Mean",
+    "SWC_150_Mean",
+    "SWC_200_Mean"
+  ],
+  "validation": {
+    "samples": 336,
+    "positive_events": 48,
+    "positive_rate": 0.14285714285714285,
+    "threshold": 0.40000000000000013,
+    "precision": 0.30612244897959184,
+    "recall": 0.3125,
+    "f1": 0.30927835051546393,
+    "confusion_matrix": [
+      [
+        254,
+        34
+      ],
+      [
+        33,
+        15
+      ]
+    ],
+    "average_precision": 0.22490079004795438,
+    "roc_auc": 0.582103587962963
+  },
+  "held_out_period": {
+    "rows": 654,
+    "positive_events": 13,
+    "evaluated": false
+  }
+}

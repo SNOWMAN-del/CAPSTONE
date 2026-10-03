@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import pickle
 from pathlib import Path
 
 import pandas as pd
@@ -41,10 +42,20 @@ def parser() -> argparse.ArgumentParser:
 
     water = modes.add_parser("water", help="Predict next-day ETa and Ks from one 41-column CSV row.")
     water.add_argument("--input-csv", type=Path, required=True)
+    water.add_argument("--model", choices=("random_forest", "mlp"), default="random_forest")
     water.add_argument("--checkpoint", type=Path, default=Path("runs_hybrid/family_a_water_baseline/best.pt"))
+    water.add_argument("--random-forest-model", type=Path, default=Path("runs_hybrid/family_a_water_random_forest/model.pkl"))
     water.add_argument("--mc-samples", type=int, default=30, help="Stochastic passes for MLP predictive uncertainty.")
     water.add_argument("--rainfall-mm", type=float, default=0.0)
     water.add_argument("--irrigation-config", type=Path, help="Optional JSON object matching IrrigationPolicy fields.")
+
+    irrigation = modes.add_parser("irrigation", help="Predict irrigation need from Kaggle irrigation feature rows.")
+    irrigation.add_argument("--input-csv", type=Path, required=True)
+    irrigation.add_argument(
+        "--model",
+        type=Path,
+        default=Path("model_a/kaggle_irrigation_runs/family_a_random_forest/model.pkl"),
+    )
     return root
 
 
@@ -122,9 +133,17 @@ def predict_stress(args, device: torch.device):
 def predict_water(args, device: torch.device):
     if not args.input_csv.is_file():
         raise FileNotFoundError(f"CSV not found: {args.input_csv}")
-    checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
-    metadata = checkpoint["metadata"]
-    stats = checkpoint.get("dataset_stats")
+    if args.model == "random_forest":
+        if not args.random_forest_model.is_file():
+            raise FileNotFoundError(f"Random Forest model not found: {args.random_forest_model}")
+        with args.random_forest_model.open("rb") as handle:
+            saved = pickle.load(handle)
+        metadata = saved["metadata"]
+        stats = saved["dataset_stats"]
+    else:
+        checkpoint = torch.load(args.checkpoint, map_location=device, weights_only=False)
+        metadata = checkpoint["metadata"]
+        stats = checkpoint.get("dataset_stats")
     if stats is None:
         raise ValueError("This water checkpoint lacks normalization statistics. Retrain it with the current trainer.")
     row = pd.read_csv(args.input_csv)
@@ -139,33 +158,66 @@ def predict_water(args, device: torch.device):
     std = torch.as_tensor(stats["feature_std"], dtype=torch.float32)
     values = torch.as_tensor(features, dtype=torch.float32)
     values = torch.where(torch.isnan(values), mean, values)
-    values = ((values - mean) / std).to(device)
-    model = build_model("a", "water", metadata, 224, backbone="baseline", pretrained=False).to(device)
-    model.load_state_dict(checkpoint["model"])
-    if args.mc_samples < 2:
-        raise ValueError("--mc-samples must be at least 2.")
-    # Keep batch normalization fixed but enable dropout for Monte-Carlo uncertainty.
-    model.eval()
-    for module in model.modules():
-        if isinstance(module, torch.nn.Dropout):
-            module.train()
-    with torch.inference_mode():
-        standardized_samples = torch.stack([model(values)[0].cpu() for _ in range(args.mc_samples)])
     target_mean = torch.as_tensor(stats["target_mean"], dtype=torch.float32)
     target_std = torch.as_tensor(stats["target_std"], dtype=torch.float32)
-    predictions = standardized_samples * target_std + target_mean
-    prediction = predictions.mean(dim=0)
-    uncertainty = predictions.std(dim=0, unbiased=True)
+    normalized = (values - mean) / std
+    if args.model == "random_forest":
+        standardized_prediction = torch.as_tensor(saved["model"].predict(normalized.numpy())[0], dtype=torch.float32)
+        prediction = standardized_prediction * target_std + target_mean
+        uncertainty = None
+    else:
+        values = normalized.to(device)
+        model = build_model("a", "water", metadata, 224, backbone="baseline", pretrained=False).to(device)
+        model.load_state_dict(checkpoint["model"])
+        if args.mc_samples < 2:
+            raise ValueError("--mc-samples must be at least 2.")
+        # Keep batch normalization fixed but enable dropout for Monte-Carlo uncertainty.
+        model.eval()
+        for module in model.modules():
+            if isinstance(module, torch.nn.Dropout):
+                module.train()
+        with torch.inference_mode():
+            standardized_samples = torch.stack([model(values)[0].cpu() for _ in range(args.mc_samples)])
+        predictions = standardized_samples * target_std + target_mean
+        prediction = predictions.mean(dim=0)
+        uncertainty = predictions.std(dim=0, unbiased=True)
     policy = IrrigationPolicy()
     if args.irrigation_config:
         policy = IrrigationPolicy(**json.loads(args.irrigation_config.read_text(encoding="utf-8")))
-    return {
+    result = {
         "mode": "water",
+        "model": args.model,
         "prediction": {"next_day_ETa": round(float(prediction[0]), 6), "next_day_Ks": round(float(prediction[1]), 6)},
-        "predictive_uncertainty_std": {"next_day_ETa": round(float(uncertainty[0]), 6), "next_day_Ks": round(float(uncertainty[1]), 6)},
-        "uncertainty_method": {"name": "MC dropout", "samples": args.mc_samples, "scope": "epistemic approximation"},
         "irrigation_advisory": irrigation_advisory(float(prediction[0]), float(prediction[1]), args.rainfall_mm, policy),
     }
+    if uncertainty is not None:
+        result["predictive_uncertainty_std"] = {"next_day_ETa": round(float(uncertainty[0]), 6), "next_day_Ks": round(float(uncertainty[1]), 6)}
+        result["uncertainty_method"] = {"name": "MC dropout", "samples": args.mc_samples, "scope": "epistemic approximation"}
+    return result
+
+
+def predict_irrigation(args):
+    if not args.input_csv.is_file():
+        raise FileNotFoundError(f"CSV not found: {args.input_csv}")
+    if not args.model.is_file():
+        raise FileNotFoundError(f"Model not found: {args.model}")
+    with args.model.open("rb") as handle:
+        model = pickle.load(handle)
+    frame = pd.read_csv(args.input_csv)
+    if frame.empty:
+        raise ValueError("The irrigation input CSV must contain at least one row.")
+    if "Irrigation_Need" in frame.columns:
+        frame = frame.drop(columns=["Irrigation_Need"])
+    predictions = model.predict(frame)
+    result = {"mode": "irrigation", "model": "Kaggle Random Forest", "predictions": [str(value) for value in predictions]}
+    if hasattr(model, "predict_proba"):
+        probabilities = model.predict_proba(frame)
+        classes = model.classes_
+        result["confidence"] = [
+            {str(classes[int(index)]): round(float(values[int(index)]), 6)}
+            for values, index in zip(probabilities, probabilities.argmax(axis=1))
+        ]
+    return result
 
 
 def main() -> None:
@@ -175,6 +227,8 @@ def main() -> None:
         result = predict_disease(args, device)
     elif args.mode == "stress":
         result = predict_stress(args, device)
+    elif args.mode == "irrigation":
+        result = predict_irrigation(args)
     else:
         result = predict_water(args, device)
     result["device"] = str(device)
