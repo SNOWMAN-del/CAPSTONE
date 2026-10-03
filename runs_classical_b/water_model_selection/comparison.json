@@ -1,0 +1,102 @@
+{
+  "selection_rule": "lowest validation MSE on targets standardized with train-split statistics",
+  "selected_model": "rbf_svr_c10",
+  "comparisons": {
+    "extra_trees": {
+      "selection_normalized_mse": 0.3410247674289301,
+      "validation": {
+        "per_target": {
+          "next_day_ETa": {
+            "mae": 1.1404390654693437,
+            "rmse": 1.268899179242526,
+            "r2": 0.2936770469711456
+          },
+          "next_day_Ks": {
+            "mae": 0.04751769111271396,
+            "rmse": 0.06590270887330145,
+            "r2": -0.14885785468396828
+          }
+        },
+        "mean_mae": 0.593978378291029,
+        "mean_rmse": 0.898456535988023
+      }
+    },
+    "random_forest": {
+      "selection_normalized_mse": 0.551412994129032,
+      "validation": {
+        "per_target": {
+          "next_day_ETa": {
+            "mae": 1.4713735274196467,
+            "rmse": 1.6877589140847813,
+            "r2": -0.24959680890499225
+          },
+          "next_day_Ks": {
+            "mae": 0.05464226081574149,
+            "rmse": 0.06808012626159127,
+            "r2": -0.22602823054464816
+          }
+        },
+        "mean_mae": 0.763007894117694,
+        "mean_rmse": 1.1943963026701887
+      }
+    },
+    "ridge": {
+      "selection_normalized_mse": 0.4784602224826813,
+      "validation": {
+        "per_target": {
+          "next_day_ETa": {
+            "mae": 0.8635509312152863,
+            "rmse": 0.9707332965492936,
+            "r2": 0.5866204964921368
+          },
+          "next_day_Ks": {
+            "mae": 0.10624654094378154,
+            "rmse": 0.13754952015125435,
+            "r2": -4.004698562611844
+          }
+        },
+        "mean_mae": 0.4848987360795339,
+        "mean_rmse": 0.6932687081944847
+      }
+    },
+    "rbf_svr_c1": {
+      "selection_normalized_mse": 0.23379396133718577,
+      "validation": {
+        "per_target": {
+          "next_day_ETa": {
+            "mae": 0.9444546803258577,
+            "rmse": 1.0452463960417637,
+            "r2": 0.5207231588740266
+          },
+          "next_day_Ks": {
+            "mae": 0.03366542003986522,
+            "rmse": 0.055565110774009205,
+            "r2": 0.18329703118333496
+          }
+        },
+        "mean_mae": 0.4890600501828614,
+        "mean_rmse": 0.7401444149534682
+      }
+    },
+    "rbf_svr_c10": {
+      "selection_normalized_mse": 0.1949877174989916,
+      "validation": {
+        "per_target": {
+          "next_day_ETa": {
+            "mae": 0.681264024483557,
+            "rmse": 0.8340825919236426,
+            "r2": 0.6948121772479552
+          },
+          "next_day_Ks": {
+            "mae": 0.049349179165573076,
+            "rmse": 0.06836902506044543,
+            "r2": -0.2364556379093683
+          }
+        },
+        "mean_mae": 0.36530660182456504,
+        "mean_rmse": 0.591763505860989
+      }
+    }
+  },
+  "test_evaluated": false
+}

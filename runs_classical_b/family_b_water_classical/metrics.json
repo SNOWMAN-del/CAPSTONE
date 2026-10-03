@@ -1,0 +1,24 @@
+{
+  "method": "extra_trees_regressor",
+  "validation": {
+    "per_target": {
+      "next_day_ETa": {
+        "mae": 1.1404390654693437,
+        "rmse": 1.268899179242526,
+        "r2": 0.2936770469711456
+      },
+      "next_day_Ks": {
+        "mae": 0.04751769111271396,
+        "rmse": 0.06590270887330145,
+        "r2": -0.14885785468396828
+      }
+    },
+    "mean_mae": 0.593978378291029,
+    "mean_rmse": 0.898456535988023
+  },
+  "feature_dimensions": 41,
+  "train_samples": 162,
+  "task": "water",
+  "device": "cuda",
+  "test_evaluated": false
+}

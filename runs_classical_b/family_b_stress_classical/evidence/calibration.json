@@ -1,0 +1,14 @@
+{
+  "task": "stress",
+  "scope": "calibrated from training features with three-fold cross-validation; evaluated on validation only",
+  "device": "cuda",
+  "uncertainty_method": "Platt-calibrated Linear SVM probabilities",
+  "validation": {
+    "samples": 321,
+    "accuracy": 0.9345794392523364,
+    "nll": 0.3498856825864684,
+    "brier": 0.14577786807294812,
+    "ece": 0.15228939788960907,
+    "mean_predictive_entropy": 0.724701094519218
+  }
+}

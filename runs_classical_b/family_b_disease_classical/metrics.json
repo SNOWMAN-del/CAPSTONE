@@ -1,0 +1,13 @@
+{
+  "method": "frozen_mobilenet_v2_embeddings_plus_linear_svm",
+  "validation": {
+    "accuracy": 0.9321120689655172,
+    "macro_f1": 0.9503565684615568,
+    "samples": 1856
+  },
+  "feature_dimensions": 1280,
+  "train_samples": 8693,
+  "task": "disease",
+  "device": "cuda",
+  "test_evaluated": false
+}

@@ -1,0 +1,31 @@
+{
+  "evaluation_type": "locked_held_out_test",
+  "image_feature_extraction_device": "cuda",
+  "disease": {
+    "accuracy": 0.9490445859872612,
+    "macro_f1": 0.9587862297392908,
+    "samples": 1884
+  },
+  "stress": {
+    "accuracy": 0.9285714285714286,
+    "macro_f1": 0.9294656818399272,
+    "samples": 322
+  },
+  "water": {
+    "selected_model": "rbf_svr_c10",
+    "per_target": {
+      "next_day_ETa": {
+        "mae": 1.020126939362684,
+        "rmse": 1.2460125651632914,
+        "r2": -3.0880859587117646
+      },
+      "next_day_Ks": {
+        "mae": 0.05664098408713445,
+        "rmse": 0.06835829894176375,
+        "r2": null
+      }
+    },
+    "mean_mae": 0.5383839617249092,
+    "mean_rmse": 0.8823888512382216
+  }
+}

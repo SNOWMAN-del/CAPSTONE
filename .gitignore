@@ -4,6 +4,7 @@
 /datasets/
 /raw-data/
 /processed-data/
+/kaggle_irrigation_data/
 
 # Python environments, local package installs, and downloaded pretrained weights.
 /.venv/
@@ -13,8 +14,12 @@
 __pycache__/
 *.py[cod]
 
-# Generated experiment outputs, checkpoints, and logs.
+# Generated experiment outputs and logs. Family B's final, compact artifacts are
+# intentionally versioned so collaborators can reproduce the reported results.
 /runs*/
+!/runs_classical_b/
+!/runs_classical_b/**
+/model_b/kaggle_irrigation_runs/
 /outputs/
 /checkpoints/
 /logs/
@@ -29,6 +34,7 @@ __pycache__/
 *.keras
 
 # Secrets, editor settings, and OS metadata.
+.kaggle/
 .env
 .env.*
 !.env.example

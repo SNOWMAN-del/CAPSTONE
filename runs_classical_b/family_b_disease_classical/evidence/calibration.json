@@ -1,0 +1,14 @@
+{
+  "task": "disease",
+  "scope": "calibrated from training features with three-fold cross-validation; evaluated on validation only",
+  "device": "cuda",
+  "uncertainty_method": "Platt-calibrated Linear SVM probabilities",
+  "validation": {
+    "samples": 1856,
+    "accuracy": 0.9396551724137931,
+    "nll": 0.23664120334091926,
+    "brier": 0.09986643701853867,
+    "ece": 0.07768315844824417,
+    "mean_predictive_entropy": 0.49914443252837337
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "task": "water",
+  "project_data": "Dataset/PROJECT_DATA",
+  "image_size": 224,
+  "batch_size": 64,
+  "num_workers": 2,
+  "svm_c": 1.0,
+  "trees": 300,
+  "seed": 42,
+  "output_dir": "runs_classical_b",
+  "torch_home": ".torch_cache",
+  "evaluate_test": false
+}
